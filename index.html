@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Расход дисков — отчёт</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#f4f6fa;color:#1f2937;padding:12px}
+  header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+  h1{font-size:18px;color:#111827}
+  .status{font-size:12px;color:#6b7280;display:flex;align-items:center;gap:6px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#e5e7eb}
+  .dot.ok{background:#16a34a}
+  .update{font-size:12px;color:#6b7280;margin-bottom:10px}
+  .warn{display:none;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;padding:8px;font-size:12px;margin-bottom:10px}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+  .controls label{font-size:13px;display:flex;align-items:center;gap:5px}
+  .multi{position:relative}
+  .mbtn{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:7px 10px;cursor:pointer;font-size:13px}
+  .mdrop{display:none;position:absolute;top:calc(100%+2px);left:0;z-index:50;background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.12);max-height:320px;overflow:auto;min-width:190px;padding:6px}
+  .multi.open .mdrop{display:block}
+  .mdrop label{display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:12px;cursor:pointer;border-radius:6px}
+  .mdrop label:hover{background:#f5f8ff}
+  .mdrop label.all{font-weight:600;border-bottom:1px solid #eee;margin-bottom:4px}
+  .msearch{width:100%;padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;margin-bottom:6px}
+  input[type=date]{padding:6px 8px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px}
+  button{padding:8px 14px;border:none;border-radius:8px;background:#2563eb;color:#fff;font-weight:600;font-size:13px;cursor:pointer}
+  button.ghost{background:#fff;color:#1f2937;border:1px solid #e5e7eb}
+  .card{background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .kpis{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+  .kpi{background:#fff;border-radius:10px;padding:10px 14px;flex:1;min-width:120px}
+  .kpi .lbl{font-size:12px;color:#6b7280}
+  .kpi .val{font-size:20px;font-weight:700;color:#111827}
+  .scroll{overflow:auto;max-height:420px;border:1px solid #eef0f3;border-radius:8px}
+  table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
+  th{position:sticky;top:0;background:#f9fafb;padding:8px 10px;text-align:left;border-bottom:1px solid #e5e7eb;font-weight:600;color:#374151}
+  td{padding:7px 10px;border-bottom:1px solid #f3f4f6}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  @media(max-width:600px){ .kpis{min-width:100%} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Расход дисков — отчёт</h1>
+  <div class="status"><span class="dot" id="dot"></span><span id="statusTxt">Загрузка…</span></div>
+</header>
+<div class="update" id="updateTxt"></div>
+<div class="warn" id="warnBox"></div>
+
+<div class="controls">
+  <label><input type="checkbox" id="chkPerepil" checked> Вкл. перепилы</label>
+  <label><input type="checkbox" id="chkDisk" checked> Только диски</label>
+  <div class="multi" id="mmat"><button class="mbtn" onclick="toggleDropdown('mmat')">Материалы</button><div class="mdrop"><input class="msearch" placeholder="Поиск…" oninput="filterOpts('mat',this.value)"><label class="all"><input type="checkbox" onchange="checkAll('mat',this.checked)"> Все</label><div id="matOpts"></div></div></div>
+  <div class="multi" id="mst"><button class="mbtn" onclick="toggleDropdown('mst')">Станки</button><div class="mdrop"><input class="msearch" placeholder="Поиск…" oninput="filterOpts('st',this.value)"><label class="all"><input type="checkbox" onchange="checkAll('st',this.checked)"> Все</label><div id="stOpts"></div></div></div>
+  <div class="multi" id="mcode"><button class="mbtn" onclick="toggleDropdown('mcode')">Коды</button><div class="mdrop"><input class="msearch" placeholder="Поиск…" oninput="filterOpts('code',this.value)"><label class="all"><input type="checkbox" onchange="checkAll('code',this.checked)"> Все</label><div id="codeOpts"></div></div></div>
+  <div class="multi" id="mdisk"><button class="mbtn" onclick="toggleDropdown('mdisk')">Диски</button><div class="mdrop"><input class="msearch" placeholder="Поиск…" oninput="filterOpts('disk',this.value)"><label class="all"><input type="checkbox" onchange="checkAll('disk',this.checked)"> Все</label><div id="diskOpts"></div></div></div>
+  <label>с <input type="date" id="from"></label>
+  <label>по <input type="date" id="to"></label>
+  <button id="refresh" onclick="loadData()">Обновить</button>
+</div>
+
+<div class="card" style="margin-bottom:12px">
+  <div class="kpis">
+    <div class="kpi"><div class="lbl">Всего израсходовано</div><div class="val" id="kpiTotal">—</div></div>
+    <div class="kpi"><div class="lbl">Дней с расходом</div><div class="val" id="kpiDays">—</div></div>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin-bottom:8px">Отчёт (по выбранным фильтрам)</h3>
+  <div id="reportInfo" style="font-size:12px;color:#6b7280;margin-bottom:8px"></div>
+  <div class="scroll">
+    <table class="t" id="reportTable">
+      <thead><tr><th>Дата</th><th>ВРЕМЯ</th><th>наряд</th><th>ЗАКАЗЧИК</th><th>НОМЕР ДИСКА</th><th>Код диска</th><th>МАТЕРИАЛ</th><th>СТАНОК</th><th>ЦВЕТ</th><th class="num">КОЛ-ВО</th><th>ОПЕРАТОР</th><th>КОМЕНТАРИИ</th></tr></thead>
+      <tbody id="reportBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+var SHEET_GIDS=["814879347","669176863","705614077"];
+var SHEETS_ID="12U6MYd3DLuLq4mZ0uIaG4lh_u6Q4MdOWcJvDZE4_CNE";
+var rawRows=[];
+var MAT_CANON={"pmma":"PMMA","splint":"Splint","spl":"Splint","upsero":"Upsero","emax":"E-max","ti":"Ti","com":"COM","duo":"DUO","aevra":"AEVRA","est":"EST","wax":"Wax","flex res":"Flex Res","flex":"Flex Res","pink":"PINK"};
+var DISK_CATALOG=["4D ML A1 D98*16F","4D ML A1 D98*18F","4D ML A1 D98*20F","4D ML A1 D98*22F","4D ML A1 D98*25F","4D ML A2 D98*16F","4D ML A2 D98*18F","4D ML A2 D98*20F","4D ML A2 D98*25F","4D ML A3,5 D98*16F","4D ML A3,5 D98*20F","4D ML A3,5 D98*22F","4D ML A3,5 D98*25F","4D ML A3 D98*16F","4D ML A3 D98*18F","4D ML A3 D98*20F","4D ML A3 D98*22F","4D ML A3 D98*25F","4D ML A4 D98*16F","4D ML A4 D98*18F","4D ML A4 D98*22F","4D ML BL1 D98*16F","4D ML BL1 D98*18F","4D ML BL1 D98*20F","4D ML BL1 D98*22F","4D ML BL1 D98*25F","4D ML BL2 D98*16F","4D ML BL2 D98*18F","4D ML BL2 D98*20F","4D ML BL2 D98*22F","4D ML BL2 D98*25F","4D ML BL3 D98*16F","4D ML BL3 D98*18F","4D ML BL3 D98*20F","4D ML BL3 D98*22F","4D ML BL3 D98*25F","4D ML BL4 D98*16F","4D ML BL4 D98*18F","4D ML D3 D98*18F","4D ML D3 D98*20F","DUO ML A1 98*16","DUO ML A1 98*18","DUO ML A1 98*20","DUO ML A1 98*22","DUO ML A1 98*25","DUO ML A2 98*16","DUO ML A2 98*18","DUO ML A2 98*20","DUO ML A2 98*22","DUO ML A2 98*25","DUO ML A3,5 98*16","DUO ML A3,5 98*18","DUO ML A3,5 98*20","DUO ML A3 98*25","ML B1 98*16","ML B1 98*18","ML B1 98*20","ML B1 98*22","ML B1 98*25","ML B2 98*16","ML B2 98*20","ML B2 98*22","ML B2 98*25","ML B3 98*20","ML B3 98*22","ML B3 98*25","ML B4 98*16","ML C1 98*18","ML C1 98*20","ML C1 98*22","ML C1 98*25","ML C2 98*18","ML C2 98*20","ML C2 98*22","ML C2 98*25","ML C3 98*16","ML C3 98*18","ML C3 98*20","ML C4 98*16","ML D2 98*16","ML D2 98*18","ML D3 98*18","ML D3 98*20","ML D3 98*22","PMMA BL3 OD 98*16mm","PMMA Clear 0098*20мм","PMMA А1 OD 98*16mm","PMMA А2 OD 98*16mm","PMMA А3 OD 98*16mm"];
+
+function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+function isPerepil(c){c=(c||"").toLowerCase();return c.indexOf("перепил")>=0||c.indexOf("переделка")>=0||c.indexOf("гаранти")>=0||c.indexOf("перемоделир")>=0||c.indexOf("прототип")>=0||c.indexOf("новый вари")>=0;}
+function canonMat(m){m=(m||"").trim().toLowerCase();if(MAT_CANON[m])return MAT_CANON[m];return m?m.charAt(0).toUpperCase()+m.slice(1):"";}
+function isCatalogDisk(x){var code=(x.code||"").trim().toUpperCase();var disk=(x.disk||"").trim().toLowerCase();if(/^(4DML|DUOML|PMMA|ML|TITAN|D)-/.test(code))return true;return DISK_CATALOG.some(function(n){return disk===n.toLowerCase();});}
+function fmtDate(d){var p=d.split("-");return p.length===3?p[2]+"."+p[1]+"."+p[0]:d;}
+
+function parseCsv(text){
+  var rows=[],row=[],cur="",inQ=false,i=0;
+  while(i<text.length){var c=text[i];
+    if(inQ){if(c==='"'){if(text[i+1]==='"'){cur+='"';i+=2;continue;}inQ=false;i++;continue;}cur+=c;i++;continue;}
+    if(c==='"'){inQ=true;i++;continue;}
+    if(c===","){row.push(cur);cur="";i++;continue;}
+    if(c==="\n"){row.push(cur);rows.push(row);row=[];cur="";i++;continue;}
+    if(c==="\r"){i++;continue;}
+    cur+=c;i++;
+  }
+  if(cur.length||row.length){row.push(cur);rows.push(row);}
+  return rows;
+}
+
+function normData(csvText){
+  var rows=parseCsv(csvText);if(!rows.length)return [];
+  var hdr=rows[0].map(function(h){return h.trim().toLowerCase();});
+  function col(n){return hdr.indexOf(n);}
+  var iDate=col("дата"),iTime=col("время"),iNar=col("наряд"),iCust=col("заказчик"),iDisk=col("номер диска"),iCode=col("код диска"),iMat=col("материал"),iSt=col("станок"),iColor=col("цвет"),iQty=col("кол-во"),iOper=col("оператор"),iCom=col("комен");
+  if(iCom<0)iCom=col("коментарии");if(iCom<0){hdr.forEach(function(h,k){if(h.indexOf("комен")>=0)iCom=k;});}
+  if(iDate<0){var probe=rows.length>1?String(rows[1][0]||""):"";if(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(probe.trim()))iDate=0;}
+  var out=[];
+  for(var k=1;k<rows.length;k++){var r=rows[k];if(!r.length)continue;
+    var d=r[iDate]?r[iDate].trim():"";if(!d)continue;
+    var p=d.split(".");if(p.length!==3)continue;var dt=p[2]+"-"+p[1]+"-"+p[0];
+    var disk=(iDisk>=0&&r[iDisk])?r[iDisk].trim():(iDisk>=0?"":"");if(!disk)disk="—";
+    var code=(iCode>=0&&r[iCode])?r[iCode].trim():"";
+    var mat=canonMat(r[iMat]?r[iMat]:"");if(!mat)mat="—";
+    var st=((r[iSt]||"")||"—");st=st.trim()||"—";
+    var time=(iTime>=0&&r[iTime])?r[iTime].trim():"";
+    var nar=(iNar>=0&&r[iNar])?r[iNar].trim():"";
+    var cust=(iCust>=0&&r[iCust])?r[iCust].trim():"";
+    var color=(iColor>=0&&r[iColor])?r[iColor].trim():"";
+    var oper=(iOper>=0&&r[iOper])?r[iOper].trim():"";
+    var q=1;if(r[iQty]!==undefined&&r[iQty]!==null){var s=String(r[iQty]).trim().replace(/\s/g,"");var v=parseFloat(s.replace(",","."));if(!isNaN(v))q=v;}
+    var com=r[iCom]?r[iCom].trim():"";
+    out.push({date:dt,time:time,nar:nar,cust:cust,disk:disk,code:code,mat:mat,st:st,color:color,q:q,oper:oper,com:com,perepil:isPerepil(com)});
+  }
+  return out;
+}
+function getGvizUrls(){return SHEET_GIDS.map(function(g){return "https://docs.google.com/spreadsheets/d/"+SHEETS_ID+"/gviz/tq?tqx=out:csv&gid="+g;});}
+
+function setStatus(ok,txt){var d=document.getElementById("dot"),s=document.getElementById("statusTxt");d.className="dot"+(ok?" ok":"");s.textContent=txt;}
+function loadData(){
+  setStatus(false,"Загрузка…");
+  document.getElementById("refresh").disabled=true;
+  var urls=getGvizUrls(),all=[],seq=Promise.resolve();
+  urls.forEach(function(u){seq=seq.then(function(){return fetch(u).then(function(res){return res.ok?res.text():null;}).then(function(t){if(t){var p=normData(t);if(p&&p.length)all=all.concat(p);}});});});
+  seq.then(function(){
+    rawRows=all;
+    var n=new Date(),ts=n.toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
+    document.getElementById("updateTxt").textContent="Данные от "+ts+" · записей: "+rawRows.length;
+    document.getElementById("warnBox").style.display="none";
+populateSelects();populateCodeList();updateBtn();render();
+    setStatus(true,"Данные актуальны");
+    document.getElementById("refresh").disabled=false;
+  }).catch(function(e){console.error(e);var w=document.getElementById("warnBox");w.style.display="block";w.textContent="Не удалось загрузить данные: "+e.message;setStatus(false,"Ошибка");document.getElementById("refresh").disabled=false;});
+}
+
+function multiSel(cat){var map={"mat":"matOpts","st":"stOpts","code":"codeOpts","disk":"diskOpts"};var box=document.getElementById(map[cat]);var a=[];if(box){var ch=box.querySelectorAll("input[type=checkbox]:checked");for(var i=0;i<ch.length;i++)a.push(ch[i].value);}return a;}
+function fillOpts(cat,values){var map={"mat":"matOpts","st":"stOpts","code":"codeOpts","disk":"diskOpts"};var box=document.getElementById(map[cat]);if(!box)return;var prev=multiSel(cat),html="";values.forEach(function(v){var checked=prev.indexOf(v)>=0?"checked":"";html+="<label><input type='checkbox' value='"+esc(v)+"' onchange='render()' "+checked+"> "+esc(v)+"</label>";});box.innerHTML=html;}
+function updateBtn(){["mat","st","code","disk"].forEach(function(cat){var map={"mat":"Материалы","st":"Станки","code":"Коды","disk":"Диски"};var sel=multiSel(cat),wrap=document.getElementById("m"+cat),btn=wrap?wrap.querySelector(".mbtn"):null;if(!btn)return;if(sel.length===0)btn.textContent=map[cat]+" (все)";else if(sel.length<=2)btn.textContent=map[cat]+": "+sel.join(", ");else btn.textContent=map[cat]+": "+sel.length; });}
+function populateSelects(){var mats={},sts={},disks={};rawRows.forEach(function(r){mats[r.mat]=1;sts[r.st]=1;disks[r.disk]=1;});fillOpts("mat",Object.keys(mats).sort());fillOpts("st",Object.keys(sts).sort());fillOpts("disk",Object.keys(disks).sort(function(a,b){return String(a).localeCompare(String(b),"ru");}));var dates=rawRows.map(function(r){return r.date;}).sort();if(dates.length&&!document.getElementById("from").value){document.getElementById("from").value=dates[0];document.getElementById("to").value=dates[dates.length-1];}}
+function populateCodeList(){var seen={},list=[];rawRows.forEach(function(r){var c=(r.code||"").trim();if(c&&!seen[c]){seen[c]=1;list.push(c);}});fillOpts("code",list.sort());}
+function checkAll(cat,ch){var map={"mat":"matOpts","st":"stOpts","code":"codeOpts","disk":"diskOpts"};var box=document.getElementById(map[cat]);var cbs=box.querySelectorAll("input[type=checkbox]");for(var i=0;i<cbs.length;i++)cbs[i].checked=ch;render();}
+function filterOpts(cat,q){var map={"mat":"matOpts","st":"stOpts","code":"codeOpts","disk":"diskOpts"};var box=document.getElementById(map[cat]);q=(q||"").toLowerCase();var prev=multiSel(cat);var all=Array.prototype.slice.call(box.children).map(function(l){return l.querySelector("input").value;});var shown=all.filter(function(v){return v.toLowerCase().indexOf(q)>=0;});box.innerHTML="";if(q===""||shown.length<all.length){var allInput="";all.forEach(function(v){var c=prev.indexOf(v)>=0?"checked":"";var vis=shown.indexOf(v)>=0?"":"style='display:none'";var h="<label "+vis+"><input type='checkbox' value='"+esc(v)+"' onchange='render()' "+c+"> "+esc(v)+"</label>";});if(q==="")box.innerHTML=htmlAll(all,prev);else box.innerHTML=htmlAll(shown,prev);}}
+function htmlAll(values,prev){var h="";values.forEach(function(v){var c=prev.indexOf(v)>=0?"checked":"";h+="<label><input type='checkbox' value='"+esc(v)+"' onchange='render()' "+c+"> "+esc(v)+"</label>";});return h;}
+function toggleDropdown(id){var m=document.getElementById(id);if(m)m.classList.toggle("open");}
+document.addEventListener("click",function(e){["mmat","mst","mcode","mdisk"].forEach(function(id){var m=document.getElementById(id);if(m&&!m.contains(e.target))m.classList.remove("open");});});
+document.getElementById("mmat").querySelector(".mbtn").onclick=function(){toggleDropdown("mmat")};
+document.getElementById("mst").querySelector(".mbtn").onclick=function(){toggleDropdown("mst")};
+document.getElementById("mcode").querySelector(".mbtn").onclick=function(){toggleDropdown("mcode")};
+document.getElementById("mdisk").querySelector(".mbtn").onclick=function(){toggleDropdown("mdisk")};
+
+function applyFilters(rows){
+  var f=document.getElementById("from").value,t=document.getElementById("to").value;
+  var per=document.getElementById("chkPerepil").checked,diskOnly=document.getElementById("chkDisk").checked;
+  var mats=multiSel("mat"),codes=multiSel("code").map(function(c){return c.toUpperCase();}),sts=multiSel("st"),disksSel=multiSel("disk");
+  return rows.filter(function(x){
+    if(!per&&x.perepil)return false;
+    if(diskOnly&&!isCatalogDisk(x))return false;
+    if(mats.length&&mats.indexOf(x.mat)<0)return false;
+    if(sts.length&&sts.indexOf(x.st)<0)return false;
+    if(codes.length&&codes.indexOf((x.code||"").toUpperCase())<0)return false;
+    if(disksSel.length&&disksSel.indexOf(x.disk)<0)return false;
+    if(f&&x.date<f)return false;
+    if(t&&x.date>t)return false;
+    return true;
+  });
+}
+function isReportFilterActive(){var f=document.getElementById("from").value,t=document.getElementById("to").value;if(f||t)return true;return multiSel("mat").length>0||multiSel("st").length>0||multiSel("code").length>0||multiSel("disk").length>0;}
+function render(){
+  updateBtn();
+  var rows=applyFilters(rawRows),total=0;rows.forEach(function(r){total+=r.q;});
+  var days={};rows.forEach(function(r){days[r.date]=1;});
+  document.getElementById("kpiTotal").innerHTML=total+" <small style='font-size:12px;color:#6b7280'>шт</small>";
+  document.getElementById("kpiDays").innerHTML=Object.keys(days).length+" <small style='font-size:12px;color:#6b7280'>дней</small>";
+  var body=document.getElementById("reportBody");
+  var info=document.getElementById("reportInfo");
+  if(!isReportFilterActive()){info.textContent="Отчёт пуст. Выберите фильтры (материалы, коды, диски или измените даты).";body.innerHTML="<tr><td colspan='12' style='color:#9ca3af;text-align:center;padding:20px'>Выберите фильтры, чтобы сформировать отчёт</td></tr>";return;}
+  info.textContent="Найдено записей: "+rows.length+" · суммарно штук: "+total;
+  var html="";
+  rows.slice().sort(function(a,b){return (a.date||"").localeCompare(b.date||"");}).forEach(function(x){
+    html+="<tr><td>"+fmtDate(x.date)+"</td><td>"+esc(x.time||"")+"</td><td>"+esc(x.nar||"")+"</td><td>"+esc(x.cust||"")+"</td><td>"+esc(x.disk)+"</td><td>"+esc(x.code||"")+"</td><td>"+esc(x.mat)+"</td><td>"+esc(x.st)+"</td><td>"+esc(x.color||"")+"</td><td class='num'>"+x.q+"</td><td>"+esc(x.oper||"")+"</td><td>"+esc(x.com||"")+"</td></tr>";
+  });
+  if(!rows.length)html="<tr><td colspan='12' style='color:#9ca3af;text-align:center;padding:14px'>Нет данных по выбранным фильтрам</td></tr>";
+  body.innerHTML=html;
+}
+document.getElementById("from").addEventListener("change",function(){populateSelects();populateCodeList();render();});
+document.getElementById("to").addEventListener("change",function(){populateSelects();populateCodeList();render();});
+document.getElementById("chkPerepil").addEventListener("change",render);
+document.getElementById("chkDisk").addEventListener("change",render);
+loadData();
+</script>
+</body>
+</html>
