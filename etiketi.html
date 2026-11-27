@@ -23,6 +23,8 @@
   /* итоговая выдача */
   #out{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
   #out .ticket{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center;page-break-inside:avoid}
+  #out .ticket.clickable{cursor:pointer;transition:box-shadow .15s,border-color .15s}
+  #out .ticket.clickable:hover{box-shadow:0 2px 8px rgba(37,99,235,.15);border-color:#bfd7ff}
   #out .ticket canvas{width:120px;height:120px;margin:0 auto;display:block}
   #out .ticket .code{font-weight:700;font-size:13px;margin-top:6px;letter-spacing:.5px}
   #out .ticket .name{font-size:11px;color:#6b7280;margin-top:2px;word-break:break-word}
@@ -2443,7 +2445,9 @@ function gen(){
     var code=(prefix+"-"+pad(start+i,4)).toUpperCase();
     tickets.push({code:code,name:name});
     var div=document.createElement("div");
-    div.className="ticket";
+    div.className="ticket clickable";
+    div.title="Нажмите, чтобы просмотреть / распечатать этикетку";
+    div.onclick=(function(code,name){ return function(){ showHistoryQRCode(code,name); }; })(code,name);
     div.innerHTML='<div class="qr"></div><div class="code">'+esc(code)+'</div><div class="name">'+esc(name)+'</div>';
     out.appendChild(div);
     try{
